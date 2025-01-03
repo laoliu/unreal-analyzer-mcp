@@ -13,6 +13,7 @@ A Model Context Protocol (MCP) server that provides powerful source code analysi
 - **Code Search**: Search through Unreal Engine code with context-aware results
 - **Reference Finding**: Locate all references to classes, functions, or variables
 - **Subsystem Analysis**: Analyze major Unreal Engine subsystems like Rendering, Physics, etc.
+- **Game Genre Knowledge**: Built-in knowledge base of game genres, features, and implementation patterns to provide context when analyzing Unreal Engine code
 
 ## Installation
 
@@ -36,7 +37,7 @@ npm run build
 
 ### For Claude Desktop App
 
-Add the following to your Claude desktop configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+Add the following to your Claude desktop configuration file (`%APPDATA%\Claude\claude_desktop_config.json` on Windows):
 
 ```json
 {
@@ -52,7 +53,7 @@ Add the following to your Claude desktop configuration file (`~/Library/Applicat
 
 ### For Cline
 
-Add the following to your Cline MCP settings file (`~/.config/cline/mcp_settings.json` on macOS/Linux, `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json` on Windows):
+Add the following to your Cline MCP settings file (`%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json` on Windows):
 
 ```json
 {
@@ -66,135 +67,206 @@ Add the following to your Cline MCP settings file (`~/.config/cline/mcp_settings
 }
 ```
 
+## Technical Details
+
+The analyzer is built using:
+- TypeScript for type-safe code
+- Tree-sitter for robust C++ parsing
+- Model Context Protocol SDK for AI assistant integration
+- Glob for file pattern matching
+
+Key dependencies:
+- @modelcontextprotocol/create-server: ^0.1.0
+- tree-sitter: ^0.20.1
+- tree-sitter-cpp: ^0.20.0
+- glob: ^8.1.0
+
 ## Usage
 
-Once configured, the analyzer provides the following tools to Claude/Cline:
+Before using any analysis tools, you must first set the path to your Unreal Engine source code:
 
-### 1. Set Unreal Engine Path
 ```typescript
-use_mcp_tool({
-  server_name: "unreal-analyzer",
-  tool_name: "set_unreal_path",
-  arguments: {
-    path: "/path/to/UnrealEngine"
+// Set the Unreal Engine source path
+{
+  "name": "set_unreal_path",
+  "arguments": {
+    "path": "/path/to/UnrealEngine/Source"
   }
-})
+}
 ```
 
-### 2. Analyze a Class
+### Available Tools
+
+#### 1. Class Analysis
 ```typescript
-use_mcp_tool({
-  server_name: "unreal-analyzer",
-  tool_name: "analyze_class",
-  arguments: {
-    className: "AActor"
+// Get detailed information about the AActor class
+{
+  "name": "analyze_class",
+  "arguments": {
+    "className": "AActor"
   }
-})
+}
+```
+Example output:
+```json
+{
+  "name": "AActor",
+  "properties": [
+    {
+      "name": "RootComponent",
+      "type": "USceneComponent*",
+      "access": "protected"
+    }
+    // ... other properties
+  ],
+  "methods": [
+    {
+      "name": "BeginPlay",
+      "returnType": "void",
+      "access": "protected",
+      "virtual": true
+    }
+    // ... other methods
+  ]
+}
 ```
 
-### 3. Get Class Hierarchy
+#### 2. Class Hierarchy Analysis
 ```typescript
-use_mcp_tool({
-  server_name: "unreal-analyzer",
-  tool_name: "find_class_hierarchy",
-  arguments: {
-    className: "UPrimitiveComponent",
-    includeImplementedInterfaces: true
+// Get the inheritance hierarchy for ACharacter
+{
+  "name": "find_class_hierarchy",
+  "arguments": {
+    "className": "ACharacter",
+    "includeImplementedInterfaces": true
   }
-})
+}
+```
+Example output:
+```json
+{
+  "class": "ACharacter",
+  "inheritsFrom": "APawn",
+  "interfaces": ["IMovementModeInterface"],
+  "hierarchy": [
+    "ACharacter",
+    "APawn",
+    "AActor",
+    "UObject"
+  ]
+}
 ```
 
-### 4. Find References
+#### 3. Reference Finding
 ```typescript
-use_mcp_tool({
-  server_name: "unreal-analyzer",
-  tool_name: "find_references",
-  arguments: {
-    identifier: "BeginPlay",
-    type: "function"
+// Find all references to the BeginPlay function
+{
+  "name": "find_references",
+  "arguments": {
+    "identifier": "BeginPlay",
+    "type": "function"
   }
-})
+}
+```
+Example output:
+```json
+{
+  "references": [
+    {
+      "file": "Actor.cpp",
+      "line": 245,
+      "context": "void AActor::BeginPlay() { ... }"
+    },
+    {
+      "file": "Character.cpp",
+      "line": 178,
+      "context": "Super::BeginPlay();"
+    }
+  ]
+}
 ```
 
-### 5. Search Code
+#### 4. Code Search
 ```typescript
-use_mcp_tool({
-  server_name: "unreal-analyzer",
-  tool_name: "search_code",
-  arguments: {
-    query: "UPROPERTY\\(.*BlueprintReadWrite.*\\)",
-    filePattern: "*.h",
-    includeComments: true
+// Search for physics-related code
+{
+  "name": "search_code",
+  "arguments": {
+    "query": "PhysicsHandle",
+    "filePattern": "*.h",
+    "includeComments": true
   }
-})
+}
+```
+Example output:
+```json
+{
+  "matches": [
+    {
+      "file": "PhysicsEngine/PhysicsHandleComponent.h",
+      "line": 15,
+      "context": "class UPhysicsHandleComponent : public UActorComponent",
+      "snippet": "// Component used for grabbing and moving physics objects"
+    }
+  ]
+}
 ```
 
-### 6. Analyze Subsystem
+#### 5. Subsystem Analysis
 ```typescript
-use_mcp_tool({
-  server_name: "unreal-analyzer",
-  tool_name: "analyze_subsystem",
-  arguments: {
-    subsystem: "Rendering"
+// Analyze the Physics subsystem
+{
+  "name": "analyze_subsystem",
+  "arguments": {
+    "subsystem": "Physics"
   }
-})
+}
+```
+Example output:
+```json
+{
+  "name": "Physics",
+  "coreClasses": [
+    "UPhysicsEngine",
+    "FPhysScene",
+    "UBodySetup"
+  ],
+  "keyFeatures": [
+    "PhysX integration",
+    "Collision detection",
+    "Physical materials"
+  ],
+  "commonUseCases": [
+    "Character movement",
+    "Vehicle simulation",
+    "Destructible environments"
+  ]
+}
 ```
 
-## Example Prompts for Claude/Cline
+### Best Practices
 
-1. "Analyze the AActor class and explain its core functionality"
-2. "Show me the inheritance hierarchy of UPrimitiveComponent"
-3. "Find all references to BeginPlay in the engine code"
-4. "Search for Blueprint-exposed properties in the Physics system"
-5. "Explain how the Rendering subsystem is structured"
+1. Always set the Unreal Engine path first using `set_unreal_path` before using other tools
+2. Use specific class names when analyzing (e.g., "AActor" instead of just "Actor")
+3. Leverage the file pattern parameter in `search_code` to narrow down results
+4. Include implemented interfaces when analyzing class hierarchies for complete understanding
+5. Use the subsystem analysis tool to get a high-level overview before diving into specific classes
 
-## Enhancing with Latest Source Code
+### Error Handling
 
-To enhance the analyzer with more recent Unreal Engine source code:
+The analyzer will throw clear error messages when:
+- Unreal Engine path is not set
+- Class or symbol cannot be found
+- Invalid file patterns are provided
+- Syntax errors in search queries
+- Access to source files is restricted
 
-1. **Update Parser Capabilities**:
-   - Add support for newer C++ features in `tree-sitter-cpp`
-   - Enhance the query patterns in `analyzer.ts` to capture modern code patterns
+### Performance Considerations
 
-2. **Add New Analysis Features**:
-   ```typescript
-   // In analyzer.ts
-   public async analyzeBlueprints(className: string): Promise<BlueprintInfo> {
-     // Add blueprint analysis logic
-   }
-
-   public async analyzeBuildSystem(target: string): Promise<BuildInfo> {
-     // Add build system analysis
-   }
-
-   public async analyzePerformance(subsystem: string): Promise<PerformanceMetrics> {
-     // Add performance analysis
-   }
-   ```
-
-3. **Extend Subsystem Coverage**:
-   ```typescript
-   // Add new subsystems to the analyzer
-   const subsystemDirs: { [key: string]: string } = {
-     // Existing subsystems...
-     Niagara: 'Engine/Source/Runtime/Niagara',
-     MetaSounds: 'Engine/Source/Runtime/MetasoundEngine',
-     EnhancedInput: 'Engine/Source/Runtime/EnhancedInput',
-     // Add more modern subsystems
-   };
-   ```
-
-4. **Add Modern Feature Analysis**:
-   - World Partition system analysis
-   - Nanite geometry system analysis
-   - Lumen lighting system analysis
-   - MetaSounds system analysis
-   - Enhanced Input system analysis
-
-5. **Improve Performance**:
-   - Implement parallel file processing
-   - Add caching for frequently accessed data
-   - Optimize AST traversal patterns
+- Large codebases may take longer to analyze
+- Complex class hierarchies might require more processing time
+- Broad search patterns could result in many matches
+- Consider using more specific queries for faster results
 
 ## Contributing
 

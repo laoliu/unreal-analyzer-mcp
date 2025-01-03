@@ -6,6 +6,7 @@
 import { Server, StdioServerTransport } from '@modelcontextprotocol/create-server';
 import type { CallToolRequest, ListToolsRequest } from '@modelcontextprotocol/create-server';
 import { UnrealCodeAnalyzer } from './analyzer.js';
+import { GAME_GENRES, GameGenre, GenreFlag } from './types/game-genres.js';
 
 class UnrealAnalyzerServer {
   private server: Server;
@@ -155,8 +156,10 @@ class UnrealAnalyzerServer {
     }));
 
     this.server.setRequestHandler<CallToolRequest>('call_tool', async (request: CallToolRequest) => {
-      if (!this.analyzer.isInitialized() && request.params.name !== 'set_unreal_path') {
-          throw new Error('Unreal Engine path not set. Use set_unreal_path first.');
+      // Only check for Unreal initialization for Unreal-specific tools
+      const unrealTools = ['set_unreal_path', 'analyze_class', 'find_class_hierarchy', 'find_references', 'search_code', 'analyze_subsystem'];
+      if (unrealTools.includes(request.params.name) && !this.analyzer.isInitialized() && request.params.name !== 'set_unreal_path') {
+        throw new Error('Unreal Engine path not set. Use set_unreal_path first.');
       }
 
       switch (request.params.name) {
