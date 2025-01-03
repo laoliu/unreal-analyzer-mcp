@@ -1,0 +1,19 @@
+{
+  "created_by": "Ayelet Technology Private Limited",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "./build",
+    "rootDir": "./src",
+    "declaration": true,
+    "allowJs": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "build"]
+}

@@ -1,0 +1,24 @@
+{
+  "created_by": "Ayelet Technology Private Limited",
+  "name": "unreal-analyzer",
+  "version": "0.1.0",
+  "description": "MCP server for analyzing Unreal Engine source code",
+  "type": "module",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/create-server": "^0.1.0",
+    "tree-sitter": "^0.20.1",
+    "tree-sitter-cpp": "^0.20.0",
+    "glob": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/node": "^18.15.11",
+    "typescript": "^5.0.4"
+  }
+}
