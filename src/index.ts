@@ -53,14 +53,28 @@ class UnrealAnalyzerServer {
           },
         },
         {
+          name: 'set_custom_codebase',
+          description: 'Set the path to a custom C++ codebase for analysis',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              path: {
+                type: 'string',
+                description: 'Absolute path to custom codebase directory',
+              },
+            },
+            required: ['path'],
+          },
+        },
+        {
           name: 'analyze_class',
-          description: 'Get detailed information about a specific Unreal Engine class',
+          description: 'Get detailed information about a C++ class',
           inputSchema: {
             type: 'object',
             properties: {
               className: {
                 type: 'string',
-                description: 'Name of the class to analyze (e.g. AActor)',
+                description: 'Name of the class to analyze',
               },
             },
             required: ['className'],
@@ -106,7 +120,7 @@ class UnrealAnalyzerServer {
         },
         {
           name: 'search_code',
-          description: 'Search through Unreal Engine code with context',
+          description: 'Search through code with context',
           inputSchema: {
             type: 'object',
             properties: {
@@ -156,15 +170,18 @@ class UnrealAnalyzerServer {
     }));
 
     this.server.setRequestHandler<CallToolRequest>('call_tool', async (request: CallToolRequest) => {
-      // Only check for Unreal initialization for Unreal-specific tools
-      const unrealTools = ['set_unreal_path', 'analyze_class', 'find_class_hierarchy', 'find_references', 'search_code', 'analyze_subsystem'];
-      if (unrealTools.includes(request.params.name) && !this.analyzer.isInitialized() && request.params.name !== 'set_unreal_path') {
-        throw new Error('Unreal Engine path not set. Use set_unreal_path first.');
+      // Only check for initialization for analysis tools
+      const analysisTools = ['analyze_class', 'find_class_hierarchy', 'find_references', 'search_code', 'analyze_subsystem'];
+      if (analysisTools.includes(request.params.name) && !this.analyzer.isInitialized() && 
+          request.params.name !== 'set_unreal_path' && request.params.name !== 'set_custom_codebase') {
+        throw new Error('No codebase initialized. Use set_unreal_path or set_custom_codebase first.');
       }
 
       switch (request.params.name) {
         case 'set_unreal_path':
           return this.handleSetUnrealPath(request.params.arguments);
+        case 'set_custom_codebase':
+          return this.handleSetCustomCodebase(request.params.arguments);
         case 'analyze_class':
           return this.handleAnalyzeClass(request.params.arguments);
         case 'find_class_hierarchy':
@@ -194,6 +211,22 @@ class UnrealAnalyzerServer {
       };
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Failed to set Unreal Engine path');
+    }
+  }
+
+  private async handleSetCustomCodebase(args: any) {
+    try {
+      await this.analyzer.initializeCustomCodebase(args.path);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Successfully set custom codebase path to: ${args.path}`,
+          },
+        ],
+      };
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to set custom codebase path');
     }
   }
 

@@ -8,12 +8,13 @@ A Model Context Protocol (MCP) server that provides powerful source code analysi
 
 ## Features
 
-- **Class Analysis**: Get detailed information about Unreal Engine classes including methods, properties, and inheritance
+- **Class Analysis**: Get detailed information about C++ classes including methods, properties, and inheritance
 - **Hierarchy Mapping**: Visualize and understand class inheritance hierarchies
-- **Code Search**: Search through Unreal Engine code with context-aware results
+- **Code Search**: Search through code with context-aware results
 - **Reference Finding**: Locate all references to classes, functions, or variables
 - **Subsystem Analysis**: Analyze major Unreal Engine subsystems like Rendering, Physics, etc.
-- **Game Genre Knowledge**: Built-in knowledge base of game genres, features, and implementation patterns to provide context when analyzing Unreal Engine code
+- **Game Genre Knowledge**: Built-in knowledge base of game genres, features, and implementation patterns
+- **Custom Codebase Support**: Analyze any C++ codebase, not just Unreal Engine code
 
 ## Installation
 
@@ -83,14 +84,106 @@ Key dependencies:
 
 ## Usage
 
-Before using any analysis tools, you must first set the path to your Unreal Engine source code:
+Before using any analysis tools, you must first set either the Unreal Engine source path or a custom codebase path:
 
+### Setting Up Analysis
+
+#### For Unreal Engine Source Code
 ```typescript
-// Set the Unreal Engine source path
 {
   "name": "set_unreal_path",
   "arguments": {
     "path": "/path/to/UnrealEngine/Source"
+  }
+}
+```
+
+#### For Custom C++ Codebases
+```typescript
+{
+  "name": "set_custom_codebase",
+  "arguments": {
+    "path": "/path/to/your/codebase"
+  }
+}
+```
+
+The custom codebase feature allows you to analyze any C++ project. For example:
+- Game engines (Unity, Godot, custom engines)
+- Graphics libraries (OpenGL, Vulkan, DirectX)
+- Frameworks (Qt, Boost, SFML)
+- Any C++ application or library
+
+Example analyzing a custom game engine:
+```typescript
+// Initialize with custom codebase
+{
+  "name": "set_custom_codebase",
+  "arguments": {
+    "path": "/path/to/game-engine"
+  }
+}
+
+// Analyze engine's renderer class
+{
+  "name": "analyze_class",
+  "arguments": {
+    "className": "Renderer"
+  }
+}
+
+// Find all shader-related code
+{
+  "name": "search_code",
+  "arguments": {
+    "query": "shader|glsl|hlsl",
+    "filePattern": "*.{h,cpp,hpp}"
+  }
+}
+
+// Get render system class hierarchy
+{
+  "name": "find_class_hierarchy",
+  "arguments": {
+    "className": "RenderSystem",
+    "includeImplementedInterfaces": true
+  }
+}
+```
+
+Example analyzing a Qt application:
+```typescript
+// Initialize with Qt project
+{
+  "name": "set_custom_codebase",
+  "arguments": {
+    "path": "/path/to/qt-app"
+  }
+}
+
+// Find widget class definitions
+{
+  "name": "search_code",
+  "arguments": {
+    "query": "class.*:.*public.*QWidget",
+    "filePattern": "*.h"
+  }
+}
+
+// Analyze main window class
+{
+  "name": "analyze_class",
+  "arguments": {
+    "className": "MainWindow"
+  }
+}
+
+// Find signal/slot connections
+{
+  "name": "find_references",
+  "arguments": {
+    "identifier": "connect",
+    "type": "function"
   }
 }
 ```
@@ -246,20 +339,22 @@ Example output:
 
 ### Best Practices
 
-1. Always set the Unreal Engine path first using `set_unreal_path` before using other tools
-2. Use specific class names when analyzing (e.g., "AActor" instead of just "Actor")
+1. Always set either the Unreal Engine path or custom codebase path before using analysis tools
+2. Use specific class names when analyzing (e.g., "MyClass" instead of just "Class")
 3. Leverage the file pattern parameter in `search_code` to narrow down results
 4. Include implemented interfaces when analyzing class hierarchies for complete understanding
-5. Use the subsystem analysis tool to get a high-level overview before diving into specific classes
+5. Use the subsystem analysis tool to get a high-level overview before diving into specific classes (Unreal Engine only)
 
 ### Error Handling
 
 The analyzer will throw clear error messages when:
-- Unreal Engine path is not set
-- Class or symbol cannot be found
+- No codebase path is set (Unreal Engine or custom)
+- Provided path does not exist or is inaccessible
+- Class or symbol cannot be found in the codebase
 - Invalid file patterns are provided
-- Syntax errors in search queries
+- Syntax errors in search queries or C++ code
 - Access to source files is restricted
+- Tree-sitter parsing fails for C++ files
 
 ### Performance Considerations
 

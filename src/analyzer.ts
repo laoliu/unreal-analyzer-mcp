@@ -68,6 +68,7 @@ interface SubsystemInfo {
 export class UnrealCodeAnalyzer {
   private parser: any;
   private unrealPath: string | null = null;
+  private customPath: string | null = null;
   private classCache: Map<string, ClassInfo> = new Map();
   private initialized: boolean = false;
 
@@ -95,15 +96,33 @@ export class UnrealCodeAnalyzer {
     await this.buildInitialCache();
   }
 
-  private async buildInitialCache(): Promise<void> {
-    // Start with core classes
-    const corePaths = [
-      path.join(this.unrealPath!, 'Engine/Source/Runtime/Core'),
-      path.join(this.unrealPath!, 'Engine/Source/Runtime/CoreUObject'),
-    ];
+  public async initializeCustomCodebase(customPath: string): Promise<void> {
+    if (!fs.existsSync(customPath)) {
+      throw new Error('Invalid custom codebase path: Directory does not exist');
+    }
 
-    for (const corePath of corePaths) {
-      const files = glob.sync('**/*.h', { cwd: corePath, absolute: true });
+    this.customPath = customPath;
+    this.initialized = true;
+    await this.buildInitialCache();
+  }
+
+  private async buildInitialCache(): Promise<void> {
+    if (this.unrealPath) {
+      // Start with Unreal core classes
+      const corePaths = [
+        path.join(this.unrealPath, 'Engine/Source/Runtime/Core'),
+        path.join(this.unrealPath, 'Engine/Source/Runtime/CoreUObject'),
+      ];
+
+      for (const corePath of corePaths) {
+        const files = glob.sync('**/*.h', { cwd: corePath, absolute: true });
+        for (const file of files) {
+          await this.parseFile(file);
+        }
+      }
+    } else if (this.customPath) {
+      // Parse all header files in custom codebase
+      const files = glob.sync('**/*.h', { cwd: this.customPath, absolute: true });
       for (const file of files) {
         await this.parseFile(file);
       }
@@ -258,8 +277,9 @@ export class UnrealCodeAnalyzer {
     }
 
     // Search for the class
+    const searchPath = this.customPath || this.unrealPath;
     const files = glob.sync('**/*.h', {
-      cwd: this.unrealPath!,
+      cwd: searchPath!,
       absolute: true,
     });
 
@@ -311,8 +331,9 @@ export class UnrealCodeAnalyzer {
     }
 
     const references: CodeReference[] = [];
+    const searchPath = this.customPath || this.unrealPath;
     const files = glob.sync('**/*.{h,cpp}', {
-      cwd: this.unrealPath!,
+      cwd: searchPath!,
       absolute: true,
     });
 
