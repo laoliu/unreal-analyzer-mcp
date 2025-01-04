@@ -81,6 +81,34 @@ interface LearningResource {
   description: string;
 }
 
+interface ApiReference {
+  className: string;
+  methodName?: string;
+  propertyName?: string;
+  description: string;
+  syntax: string;
+  parameters?: {
+    name: string;
+    type: string;
+    description: string;
+  }[];
+  returnType?: string;
+  returnDescription?: string;
+  examples: string[];
+  remarks: string[];
+  relatedClasses: string[];
+  category: string;
+  module: string;
+  version: string;
+}
+
+interface ApiQueryResult {
+  reference: ApiReference;
+  context: string;
+  relevance: number;
+  learningResources: LearningResource[];
+}
+
 interface CodePatternMatch {
   pattern: PatternInfo;
   file: string;
@@ -538,6 +566,8 @@ export class UnrealCodeAnalyzer {
     return results;
   }
 
+  private apiCache: Map<string, ApiReference> = new Map();
+  
   private readonly UNREAL_PATTERNS: PatternInfo[] = [
     {
       name: 'UPROPERTY Macro',
@@ -688,6 +718,163 @@ export class UnrealCodeAnalyzer {
     ];
 
     return commonResources;
+  }
+
+  public async queryApiReference(
+    query: string,
+    options: {
+      category?: string;
+      module?: string;
+      includeExamples?: boolean;
+      maxResults?: number;
+    } = {}
+  ): Promise<ApiQueryResult[]> {
+    if (!this.initialized) {
+      throw new Error('Analyzer not initialized');
+    }
+
+    const results: ApiQueryResult[] = [];
+    const searchTerms = query.toLowerCase().split(/\s+/);
+
+    // Search through parsed classes and their documentation
+    for (const [className, classInfo] of this.classCache.entries()) {
+      const apiRef = await this.getOrCreateApiReference(classInfo);
+      if (!apiRef) continue;
+
+      // Filter by category/module if specified
+      if (options.category && apiRef.category !== options.category) continue;
+      if (options.module && apiRef.module !== options.module) continue;
+
+      // Calculate relevance score based on match quality
+      const relevance = this.calculateApiRelevance(apiRef, searchTerms);
+      if (relevance > 0) {
+        const result: ApiQueryResult = {
+          reference: apiRef,
+          context: this.generateApiContext(apiRef, options.includeExamples),
+          relevance,
+          learningResources: this.getLearningResources({
+            name: className,
+            description: apiRef.description,
+            bestPractices: apiRef.remarks,
+            documentation: `https://dev.epicgames.com/documentation/en-us/unreal-engine/API/${apiRef.module}/${className}`,
+            examples: apiRef.examples,
+            relatedPatterns: apiRef.relatedClasses
+          })
+        };
+        results.push(result);
+      }
+    }
+
+    // Sort by relevance and limit results
+    results.sort((a, b) => b.relevance - a.relevance);
+    return results.slice(0, options.maxResults || 10);
+  }
+
+  private async getOrCreateApiReference(classInfo: ClassInfo): Promise<ApiReference | null> {
+    if (this.apiCache.has(classInfo.name)) {
+      return this.apiCache.get(classInfo.name)!;
+    }
+
+    // Extract documentation from class comments and structure
+    const apiRef: ApiReference = {
+      className: classInfo.name,
+      description: this.extractDescription(classInfo.comments),
+      syntax: this.generateClassSyntax(classInfo),
+      examples: this.extractExamples(classInfo.comments),
+      remarks: this.extractRemarks(classInfo.comments),
+      relatedClasses: [...classInfo.superclasses, ...classInfo.interfaces],
+      category: this.determineCategory(classInfo),
+      module: this.determineModule(classInfo.file),
+      version: '5.0', // Default to latest version
+    };
+
+    this.apiCache.set(classInfo.name, apiRef);
+    return apiRef;
+  }
+
+  private calculateApiRelevance(apiRef: ApiReference, searchTerms: string[]): number {
+    let score = 0;
+    const text = [
+      apiRef.className,
+      apiRef.description,
+      apiRef.category,
+      apiRef.module,
+      ...apiRef.relatedClasses,
+      ...apiRef.examples,
+      ...apiRef.remarks
+    ].join(' ').toLowerCase();
+
+    for (const term of searchTerms) {
+      if (apiRef.className.toLowerCase().includes(term)) score += 10;
+      if (apiRef.category.toLowerCase().includes(term)) score += 5;
+      if (apiRef.module.toLowerCase().includes(term)) score += 5;
+      if (text.includes(term)) score += 2;
+    }
+
+    return score;
+  }
+
+  private generateApiContext(apiRef: ApiReference, includeExamples: boolean = false): string {
+    let context = `${apiRef.className} - ${apiRef.description}\n`;
+    context += `Module: ${apiRef.module}\n`;
+    context += `Category: ${apiRef.category}\n\n`;
+    context += `Syntax:\n${apiRef.syntax}\n`;
+    
+    if (includeExamples && apiRef.examples.length > 0) {
+      context += '\nExamples:\n';
+      context += apiRef.examples.map(ex => `${ex}\n`).join('\n');
+    }
+
+    return context;
+  }
+
+  private extractDescription(comments: string[]): string {
+    // Extract the main description from comments
+    const descLines = comments.filter(c => 
+      !c.includes('@example') && 
+      !c.includes('@remarks') &&
+      !c.includes('@see')
+    );
+    return descLines.join(' ').replace(/\/\*|\*\/|\*|\s+/g, ' ').trim();
+  }
+
+  private extractExamples(comments: string[]): string[] {
+    return comments
+      .filter(c => c.includes('@example'))
+      .map(c => c.replace(/@example\s*/, '').trim());
+  }
+
+  private extractRemarks(comments: string[]): string[] {
+    return comments
+      .filter(c => c.includes('@remarks'))
+      .map(c => c.replace(/@remarks\s*/, '').trim());
+  }
+
+  private generateClassSyntax(classInfo: ClassInfo): string {
+    let syntax = `class ${classInfo.name}`;
+    if (classInfo.superclasses.length > 0) {
+      syntax += ` : public ${classInfo.superclasses.join(', public ')}`;
+    }
+    return syntax;
+  }
+
+  private determineCategory(classInfo: ClassInfo): string {
+    // Determine category based on class name and inheritance
+    if (classInfo.name.startsWith('U')) return 'Object';
+    if (classInfo.name.startsWith('A')) return 'Actor';
+    if (classInfo.name.startsWith('F')) return 'Structure';
+    if (classInfo.superclasses.some(s => s.includes('Component'))) return 'Component';
+    return 'Miscellaneous';
+  }
+
+  private determineModule(filePath: string): string {
+    // Extract module name from file path
+    const parts = filePath.split(path.sep);
+    const runtimeIndex = parts.indexOf('Runtime');
+    if (runtimeIndex >= 0 && runtimeIndex + 1 < parts.length) {
+      return parts[runtimeIndex + 1];
+    }
+    return 'Core';
   }
 
   public async analyzeSubsystem(subsystem: string): Promise<SubsystemInfo> {

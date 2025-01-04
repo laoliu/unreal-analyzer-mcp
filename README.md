@@ -428,7 +428,52 @@ The best practices guide covers key Unreal Engine concepts:
 - Replication: Network replication setup
 - Blueprints: Blueprint/C++ interaction patterns
 
-#### 6. Subsystem Analysis
+#### 6. API Documentation Query
+```typescript
+// Search the API documentation
+{
+  "name": "query_api",
+  "arguments": {
+    "query": "Actor",
+    "category": "Object",
+    "module": "Core",
+    "includeExamples": true,
+    "maxResults": 10
+  }
+}
+```
+Example output:
+```json
+{
+  "results": [
+    {
+      "class": "AActor",
+      "description": "Base class for all actors in the game",
+      "module": "Core",
+      "category": "Object",
+      "syntax": "class AActor : public UObject",
+      "examples": [
+        "// Create a new actor\nAActor* MyActor = GetWorld()->SpawnActor<AActor>();"
+      ],
+      "remarks": [
+        "Actors are the base building blocks of the game",
+        "Can be placed in levels or spawned dynamically"
+      ],
+      "documentation": "https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Core/AActor",
+      "relevance": 100
+    }
+  ]
+}
+```
+
+The API documentation query tool provides:
+- Full-text search across class documentation
+- Filtering by category and module
+- Code examples and usage patterns
+- Relevance-based sorting of results
+- Links to official documentation
+
+#### 7. Subsystem Analysis
 ```typescript
 // Analyze the Physics subsystem
 {
@@ -459,6 +504,41 @@ Example output:
   ]
 }
 ```
+
+### API Documentation
+
+The analyzer now includes comprehensive API documentation capabilities:
+
+1. **Automatic Documentation Generation**
+   - Extracts documentation from source code comments
+   - Analyzes class structure and relationships
+   - Categorizes classes by type and module
+   - Generates syntax examples and usage patterns
+
+2. **Smart Search**
+   - Full-text search across all documentation
+   - Relevance-based ranking of results
+   - Category and module filtering
+   - Code example inclusion
+
+3. **Documentation Categories**
+   - Object: Base object classes (UObject derivatives)
+   - Actor: Actor classes (AActor derivatives)
+   - Structure: Data structures and types
+   - Component: Component classes
+   - Miscellaneous: Other classes and utilities
+
+4. **Module Organization**
+   - Core: Core engine functionality
+   - RenderCore: Rendering system
+   - PhysicsCore: Physics engine
+   - And other engine modules
+
+5. **Integration with Existing Tools**
+   - Links with class analysis for detailed information
+   - Connects to pattern detection for best practices
+   - References official Unreal Engine documentation
+   - Provides learning resources and examples
 
 ### Best Practices
 

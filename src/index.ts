@@ -143,37 +143,37 @@ class UnrealAnalyzerServer {
           },
         },
         {
-        name: 'detect_patterns',
-        description: 'Detect Unreal Engine patterns and suggest improvements',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            filePath: {
-              type: 'string',
-              description: 'Path to the file to analyze',
+          name: 'detect_patterns',
+          description: 'Detect Unreal Engine patterns and suggest improvements',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the file to analyze',
+              },
             },
+            required: ['filePath'],
           },
-          required: ['filePath'],
         },
-      },
-      {
-        name: 'get_best_practices',
-        description: 'Get Unreal Engine best practices and documentation for a specific concept',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            concept: {
-              type: 'string',
-              description: 'Concept to get best practices for (e.g. UPROPERTY, Components, Events)',
-              enum: ['UPROPERTY', 'UFUNCTION', 'Components', 'Events', 'Replication', 'Blueprints'],
+        {
+          name: 'get_best_practices',
+          description: 'Get Unreal Engine best practices and documentation for a specific concept',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              concept: {
+                type: 'string',
+                description: 'Concept to get best practices for (e.g. UPROPERTY, Components, Events)',
+                enum: ['UPROPERTY', 'UFUNCTION', 'Components', 'Events', 'Replication', 'Blueprints'],
+              },
             },
+            required: ['concept'],
           },
-          required: ['concept'],
         },
-      },
-      {
-        name: 'analyze_subsystem',
-        description: 'Analyze a specific Unreal Engine subsystem',
+        {
+          name: 'analyze_subsystem',
+          description: 'Analyze a specific Unreal Engine subsystem',
           inputSchema: {
             type: 'object',
             properties: {
@@ -195,12 +195,45 @@ class UnrealAnalyzerServer {
             required: ['subsystem'],
           },
         },
+        {
+          name: 'query_api',
+          description: 'Search and retrieve Unreal Engine API documentation',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'Search query for API documentation',
+              },
+              category: {
+                type: 'string',
+                description: 'Filter by category (Object, Actor, Structure, Component)',
+                enum: ['Object', 'Actor', 'Structure', 'Component', 'Miscellaneous'],
+              },
+              module: {
+                type: 'string',
+                description: 'Filter by module (Core, RenderCore, etc.)',
+              },
+              includeExamples: {
+                type: 'boolean',
+                description: 'Include code examples in results',
+                default: true,
+              },
+              maxResults: {
+                type: 'number',
+                description: 'Maximum number of results to return',
+                default: 10,
+              },
+            },
+            required: ['query'],
+          },
+        },
       ],
     }));
 
     this.server.setRequestHandler<CallToolRequest>('call_tool', async (request: CallToolRequest) => {
       // Only check for initialization for analysis tools
-      const analysisTools = ['analyze_class', 'find_class_hierarchy', 'find_references', 'search_code', 'analyze_subsystem'];
+      const analysisTools = ['analyze_class', 'find_class_hierarchy', 'find_references', 'search_code', 'analyze_subsystem', 'query_api'];
       if (analysisTools.includes(request.params.name) && !this.analyzer.isInitialized() && 
           request.params.name !== 'set_unreal_path' && request.params.name !== 'set_custom_codebase') {
         throw new Error('No codebase initialized. Use set_unreal_path or set_custom_codebase first.');
@@ -225,6 +258,8 @@ class UnrealAnalyzerServer {
           return this.handleSearchCode(request.params.arguments);
         case 'analyze_subsystem':
           return this.handleAnalyzeSubsystem(request.params.arguments);
+        case 'query_api':
+          return this.handleQueryApi(request.params.arguments);
         default:
           throw new Error(`Unknown tool: ${request.params.name}`);
       }
@@ -485,6 +520,41 @@ class UnrealAnalyzerServer {
       };
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Failed to analyze subsystem');
+    }
+  }
+
+  private async handleQueryApi(args: any) {
+    try {
+      const results = await this.analyzer.queryApiReference(args.query, {
+        category: args.category,
+        module: args.module,
+        includeExamples: args.includeExamples,
+        maxResults: args.maxResults,
+      });
+
+      // Format results for better readability
+      const formattedResults = results.map(result => ({
+        class: result.reference.className,
+        description: result.reference.description,
+        module: result.reference.module,
+        category: result.reference.category,
+        syntax: result.reference.syntax,
+        examples: result.reference.examples,
+        remarks: result.reference.remarks,
+        documentation: result.learningResources[0]?.url,
+        relevance: result.relevance,
+      }));
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(formattedResults, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to query API documentation');
     }
   }
 
