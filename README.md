@@ -407,6 +407,53 @@ The analyzer will throw clear error messages when:
 - Broad search patterns could result in many matches
 - Consider using more specific queries for faster results
 
+## Testing
+
+The project includes comprehensive test coverage for all major components:
+
+### Test Coverage
+
+- **Analyzer Tests**: Core functionality tests for the UnrealCodeAnalyzer class
+  - Initialization and path validation
+  - Class analysis and parsing
+  - Reference finding
+  - Code searching
+  - Subsystem analysis
+  - Cache management
+
+- **Game Genres Tests**: Validation of the game genres knowledge base
+  - Data structure verification
+  - Genre-specific feature validation
+  - Component naming conventions
+  - Data completeness checks
+
+- **MCP Server Tests**: Testing of the MCP server implementation
+  - Server initialization
+  - Tool registration and handling
+  - Request/response validation
+  - Error handling
+  - Tool-specific functionality tests
+
+### Running Tests
+
+Run all tests:
+```bash
+npm test
+```
+
+Run tests in watch mode (useful during development):
+```bash
+npm run test:watch
+```
+
+### Writing Tests
+
+When contributing new features, please ensure:
+1. All new functionality has corresponding test coverage
+2. Tests are organized in the `src/__tests__` directory
+3. Mock external dependencies appropriately
+4. Follow the existing test patterns for consistency
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests with improvements to:
@@ -417,6 +464,7 @@ Contributions are welcome! Please feel free to submit pull requests with improve
 - Documentation improvements
 - Test coverage
 
-## License
-
-MIT License - See LICENSE file for details
+Before submitting a PR:
+1. Ensure all tests pass (`npm test`)
+2. Add tests for new functionality
+3. Update documentation as needed
