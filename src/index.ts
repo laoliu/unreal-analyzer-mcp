@@ -143,8 +143,37 @@ class UnrealAnalyzerServer {
           },
         },
         {
-          name: 'analyze_subsystem',
-          description: 'Analyze a specific Unreal Engine subsystem',
+        name: 'detect_patterns',
+        description: 'Detect Unreal Engine patterns and suggest improvements',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            filePath: {
+              type: 'string',
+              description: 'Path to the file to analyze',
+            },
+          },
+          required: ['filePath'],
+        },
+      },
+      {
+        name: 'get_best_practices',
+        description: 'Get Unreal Engine best practices and documentation for a specific concept',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            concept: {
+              type: 'string',
+              description: 'Concept to get best practices for (e.g. UPROPERTY, Components, Events)',
+              enum: ['UPROPERTY', 'UFUNCTION', 'Components', 'Events', 'Replication', 'Blueprints'],
+            },
+          },
+          required: ['concept'],
+        },
+      },
+      {
+        name: 'analyze_subsystem',
+        description: 'Analyze a specific Unreal Engine subsystem',
           inputSchema: {
             type: 'object',
             properties: {
@@ -178,6 +207,10 @@ class UnrealAnalyzerServer {
       }
 
       switch (request.params.name) {
+        case 'detect_patterns':
+          return this.handleDetectPatterns(request.params.arguments);
+        case 'get_best_practices':
+          return this.handleGetBestPractices(request.params.arguments);
         case 'set_unreal_path':
           return this.handleSetUnrealPath(request.params.arguments);
         case 'set_custom_codebase':
@@ -302,6 +335,141 @@ class UnrealAnalyzerServer {
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Failed to search code');
     }
+  }
+
+  private async handleDetectPatterns(args: any) {
+    try {
+      const fileContent = await require('fs').promises.readFile(args.filePath, 'utf8');
+      const patterns = await this.analyzer.detectPatterns(fileContent, args.filePath);
+      
+      // Format the output to be more readable in Cline
+      const formattedPatterns = patterns.map(match => {
+        return {
+          pattern: match.pattern.name,
+          description: match.pattern.description,
+          location: `${match.file}:${match.line}`,
+          context: match.context,
+          improvements: match.suggestedImprovements?.join('\n'),
+          documentation: match.pattern.documentation,
+          bestPractices: match.pattern.bestPractices.join('\n'),
+          examples: match.pattern.examples.join('\n'),
+        };
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(formattedPatterns, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to detect patterns');
+    }
+  }
+
+  private async handleGetBestPractices(args: any) {
+    const bestPractices: { [key: string]: any } = {
+      'UPROPERTY': {
+        description: 'Property declaration for Unreal reflection system',
+        bestPractices: [
+          'Use appropriate specifiers (EditAnywhere, BlueprintReadWrite)',
+          'Consider replication needs (Replicated, ReplicatedUsing)',
+          'Group related properties with categories',
+          'Use Meta tags for validation and UI customization',
+        ],
+        examples: [
+          'UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")\nfloat Health;',
+          'UPROPERTY(Replicated, Meta = (ClampMin = "0.0"))\nfloat Speed;',
+        ],
+        documentation: 'https://docs.unrealengine.com/5.0/en-US/unreal-engine-uproperty-specifier-reference/',
+      },
+      'UFUNCTION': {
+        description: 'Function declaration for Unreal reflection system',
+        bestPractices: [
+          'Use BlueprintCallable for functions that can be called from Blueprints',
+          'Use BlueprintPure for functions without side effects',
+          'Consider using BlueprintNativeEvent for overridable functions',
+          'Add categories and tooltips for better organization',
+        ],
+        examples: [
+          'UFUNCTION(BlueprintCallable, Category = "Combat")\nvoid TakeDamage(float DamageAmount);',
+          'UFUNCTION(BlueprintPure, Category = "Stats")\nfloat GetHealthPercentage() const;',
+        ],
+        documentation: 'https://docs.unrealengine.com/5.0/en-US/ufunctions-in-unreal-engine/',
+      },
+      'Components': {
+        description: 'Component setup and management in Unreal Engine',
+        bestPractices: [
+          'Create components in constructor using CreateDefaultSubobject',
+          'Set up component hierarchy properly',
+          'Initialize component properties in constructor',
+          'Consider component replication needs',
+        ],
+        examples: [
+          'MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));\nRootComponent = MeshComponent;',
+          'CollisionComponent->SetupAttachment(RootComponent);',
+        ],
+        documentation: 'https://docs.unrealengine.com/5.0/en-US/components-in-unreal-engine/',
+      },
+      'Events': {
+        description: 'Event handling and delegation in Unreal Engine',
+        bestPractices: [
+          'Bind events in BeginPlay and unbind in EndPlay',
+          'Use weak pointers for delegate bindings',
+          'Consider using BlueprintAssignable for Blueprint events',
+          'Handle edge cases and null checks',
+        ],
+        examples: [
+          'DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHealthChanged, float, NewHealth);',
+          'OnHealthChanged.AddDynamic(this, &AMyActor::HandleHealthChanged);',
+        ],
+        documentation: 'https://docs.unrealengine.com/5.0/en-US/delegates-in-unreal-engine/',
+      },
+      'Replication': {
+        description: 'Network replication in Unreal Engine',
+        bestPractices: [
+          'Mark properties with Replicated specifier',
+          'Implement GetLifetimeReplicatedProps',
+          'Use ReplicatedUsing for property change callbacks',
+          'Consider replication conditions (COND_*)',
+        ],
+        examples: [
+          'void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const;',
+          'UPROPERTY(ReplicatedUsing = OnRep_Health)\nfloat Health;',
+        ],
+        documentation: 'https://docs.unrealengine.com/5.0/en-US/networking-overview-for-unreal-engine/',
+      },
+      'Blueprints': {
+        description: 'Blueprint integration and exposure',
+        bestPractices: [
+          'Use appropriate function and property specifiers',
+          'Organize functions and properties into categories',
+          'Add tooltips and descriptions',
+          'Consider Blueprint/C++ interaction patterns',
+        ],
+        examples: [
+          'UCLASS(Blueprintable, BlueprintType)',
+          'UFUNCTION(BlueprintImplementableEvent)',
+        ],
+        documentation: 'https://docs.unrealengine.com/5.0/en-US/blueprints-and-cpp-in-unreal-engine/',
+      },
+    };
+
+    const concept = bestPractices[args.concept];
+    if (!concept) {
+      throw new Error(`Unknown concept: ${args.concept}`);
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(concept, null, 2),
+        },
+      ],
+    };
   }
 
   private async handleAnalyzeSubsystem(args: any) {

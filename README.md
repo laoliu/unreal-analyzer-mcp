@@ -306,7 +306,11 @@ Example output:
 }
 ```
 
-#### 5. Pattern Detection & Learning
+#### 5. Pattern Detection & Best Practices
+
+The analyzer provides two powerful tools for understanding and following Unreal Engine best practices:
+
+##### Pattern Detection
 ```typescript
 // Detect patterns in a file
 {
@@ -319,35 +323,56 @@ Example output:
 Example output:
 ```json
 {
-  "matches": [
+  "patterns": [
     {
-      "pattern": {
-        "name": "UPROPERTY Macro",
-        "description": "Property declaration for Unreal reflection system",
-        "bestPractices": [
-          "Use appropriate property specifiers",
-          "Consider replication needs",
-          "Group related properties with categories"
-        ]
-      },
-      "file": "Source/MyGame/MyActor.h",
-      "line": 15,
+      "pattern": "UPROPERTY Macro",
+      "description": "Property declaration for Unreal reflection system",
+      "location": "Source/MyGame/MyActor.h:15",
       "context": "UPROPERTY(EditAnywhere, BlueprintReadWrite)\nfloat Health;",
-      "suggestedImprovements": [
-        "Consider adding a Category specifier for better organization"
-      ],
-      "learningResources": [
-        {
-          "title": "Official Documentation",
-          "type": "documentation",
-          "url": "https://docs.unrealengine.com/5.0/en-US/unreal-engine-uproperty-specifier-reference/",
-          "description": "Official Unreal Engine documentation for UPROPERTY Macro"
-        }
-      ]
+      "improvements": "Consider adding a Category specifier for better organization\nConsider adding Meta tags for validation",
+      "documentation": "https://docs.unrealengine.com/5.0/en-US/unreal-engine-uproperty-specifier-reference/",
+      "bestPractices": "Use appropriate specifiers (EditAnywhere, BlueprintReadWrite)\nConsider replication needs (Replicated, ReplicatedUsing)\nGroup related properties with categories",
+      "examples": "UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = \"Combat\")\nfloat Health;\nUPROPERTY(Replicated, Meta = (ClampMin = \"0.0\"))\nfloat Speed;"
     }
   ]
 }
 ```
+
+##### Best Practices Guide
+```typescript
+// Get best practices for specific Unreal concepts
+{
+  "name": "get_best_practices",
+  "arguments": {
+    "concept": "UPROPERTY"  // or UFUNCTION, Components, Events, Replication, Blueprints
+  }
+}
+```
+Example output:
+```json
+{
+  "description": "Property declaration for Unreal reflection system",
+  "bestPractices": [
+    "Use appropriate specifiers (EditAnywhere, BlueprintReadWrite)",
+    "Consider replication needs (Replicated, ReplicatedUsing)",
+    "Group related properties with categories",
+    "Use Meta tags for validation and UI customization"
+  ],
+  "examples": [
+    "UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = \"Combat\")\nfloat Health;",
+    "UPROPERTY(Replicated, Meta = (ClampMin = \"0.0\"))\nfloat Speed;"
+  ],
+  "documentation": "https://docs.unrealengine.com/5.0/en-US/unreal-engine-uproperty-specifier-reference/"
+}
+```
+
+The best practices guide covers key Unreal Engine concepts:
+- UPROPERTY: Property reflection and exposure
+- UFUNCTION: Function reflection and Blueprint integration
+- Components: Component creation and management
+- Events: Event handling and delegation
+- Replication: Network replication setup
+- Blueprints: Blueprint/C++ interaction patterns
 
 #### 6. Subsystem Analysis
 ```typescript
