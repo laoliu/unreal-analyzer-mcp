@@ -6,6 +6,60 @@ Created by Ayelet Technology Private Limited
 
 A Model Context Protocol (MCP) server that provides powerful source code analysis capabilities for Unreal Engine codebases. This tool enables AI assistants like Claude and Cline to deeply understand and analyze Unreal Engine source code.
 
+## Quick Start
+
+### Using with Cline
+
+Once configured, you can use natural language to interact with the analyzer. Here are some example commands:
+
+1. Analyzing your code:
+```
+"Check if my PlayerCharacter.h follows Unreal best practices"
+-> This will run pattern detection on your file and suggest improvements
+
+"What's the proper way to set up components in Unreal?"
+-> This will provide best practices and examples for component setup
+
+"Show me how to use UPROPERTY correctly"
+-> This will give you detailed guidance on property declaration
+```
+
+2. Understanding Unreal patterns:
+```
+"Explain how event binding works in Unreal"
+-> Get best practices for event handling with examples
+
+"What's the right way to handle replication?"
+-> Learn about network replication patterns and implementation
+```
+
+3. Code navigation:
+```
+"Find all references to BeginPlay in my project"
+-> Locate all BeginPlay implementations
+
+"Show me the inheritance hierarchy for my PlayerController"
+-> Visualize class relationships
+
+"What subsystems does the Physics engine use?"
+-> Understand Unreal's physics implementation
+```
+
+4. Learning and improvement:
+```
+"What patterns am I missing in my combat system?"
+-> Analyze your combat code for common patterns
+
+"How can I improve my Blueprint integration?"
+-> Get best practices for C++/Blueprint interaction
+```
+
+The analyzer helps you:
+- Follow Unreal Engine best practices
+- Understand and use common patterns
+- Navigate and analyze complex codebases
+- Learn from examples and documentation
+
 ## Features
 
 - **Class Analysis**: Get detailed information about C++ classes including methods, properties, and inheritance
