@@ -14,6 +14,7 @@ A Model Context Protocol (MCP) server that provides powerful source code analysi
 - **Reference Finding**: Locate all references to classes, functions, or variables
 - **Subsystem Analysis**: Analyze major Unreal Engine subsystems like Rendering, Physics, etc.
 - **Game Genre Knowledge**: Built-in knowledge base of game genres, features, and implementation patterns
+- **Pattern Detection & Learning**: Identifies common Unreal Engine patterns and provides learning resources
 - **Custom Codebase Support**: Analyze any C++ codebase, not just Unreal Engine code
 
 ## Installation
@@ -305,7 +306,50 @@ Example output:
 }
 ```
 
-#### 5. Subsystem Analysis
+#### 5. Pattern Detection & Learning
+```typescript
+// Detect patterns in a file
+{
+  "name": "detect_patterns",
+  "arguments": {
+    "filePath": "Source/MyGame/MyActor.h"
+  }
+}
+```
+Example output:
+```json
+{
+  "matches": [
+    {
+      "pattern": {
+        "name": "UPROPERTY Macro",
+        "description": "Property declaration for Unreal reflection system",
+        "bestPractices": [
+          "Use appropriate property specifiers",
+          "Consider replication needs",
+          "Group related properties with categories"
+        ]
+      },
+      "file": "Source/MyGame/MyActor.h",
+      "line": 15,
+      "context": "UPROPERTY(EditAnywhere, BlueprintReadWrite)\nfloat Health;",
+      "suggestedImprovements": [
+        "Consider adding a Category specifier for better organization"
+      ],
+      "learningResources": [
+        {
+          "title": "Official Documentation",
+          "type": "documentation",
+          "url": "https://docs.unrealengine.com/5.0/en-US/unreal-engine-uproperty-specifier-reference/",
+          "description": "Official Unreal Engine documentation for UPROPERTY Macro"
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### 6. Subsystem Analysis
 ```typescript
 // Analyze the Physics subsystem
 {

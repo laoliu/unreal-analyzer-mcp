@@ -65,6 +65,31 @@ interface SubsystemInfo {
   sourceFiles: string[];
 }
 
+interface PatternInfo {
+  name: string;
+  description: string;
+  bestPractices: string[];
+  documentation: string;
+  examples: string[];
+  relatedPatterns: string[];
+}
+
+interface LearningResource {
+  title: string;
+  type: 'documentation' | 'tutorial' | 'video' | 'blog';
+  url: string;
+  description: string;
+}
+
+interface CodePatternMatch {
+  pattern: PatternInfo;
+  file: string;
+  line: number;
+  context: string;
+  suggestedImprovements?: string[];
+  learningResources: LearningResource[];
+}
+
 type ExtendedParser = Parser & {
   createQuery(pattern: string): Query;
 };
@@ -511,6 +536,158 @@ export class UnrealCodeAnalyzer {
     }
 
     return results;
+  }
+
+  private readonly UNREAL_PATTERNS: PatternInfo[] = [
+    {
+      name: 'UPROPERTY Macro',
+      description: 'Property declaration for Unreal reflection system',
+      bestPractices: [
+        'Use appropriate property specifiers (EditAnywhere, BlueprintReadWrite, etc.)',
+        'Consider replication needs (Replicated, ReplicatedUsing)',
+        'Group related properties with categories'
+      ],
+      documentation: 'https://docs.unrealengine.com/5.0/en-US/unreal-engine-uproperty-specifier-reference/',
+      examples: [
+        'UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")\nfloat Health;',
+        'UPROPERTY(Replicated)\nFVector Location;'
+      ],
+      relatedPatterns: ['UFUNCTION Macro', 'UCLASS Macro']
+    },
+    {
+      name: 'Component Setup',
+      description: 'Creating and initializing components in constructor',
+      bestPractices: [
+        'Create components in constructor',
+        'Set default values in constructor',
+        'Use CreateDefaultSubobject for components',
+        'Set root component appropriately'
+      ],
+      documentation: 'https://docs.unrealengine.com/5.0/en-US/components-in-unreal-engine/',
+      examples: [
+        'RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));',
+        'MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));'
+      ],
+      relatedPatterns: ['Actor Initialization', 'Component Registration']
+    },
+    {
+      name: 'Event Binding',
+      description: 'Binding to delegate events and implementing event handlers',
+      bestPractices: [
+        'Bind events in BeginPlay',
+        'Unbind events in EndPlay',
+        'Use DECLARE_DYNAMIC_MULTICAST_DELEGATE for Blueprint exposure',
+        'Consider weak pointer bindings for safety'
+      ],
+      documentation: 'https://docs.unrealengine.com/5.0/en-US/delegates-in-unreal-engine/',
+      examples: [
+        'OnHealthChanged.AddDynamic(this, &AMyActor::HandleHealthChanged);',
+        'FScriptDelegate Delegate; Delegate.BindUFunction(this, "OnCustomEvent");'
+      ],
+      relatedPatterns: ['Delegate Declaration', 'Event Dispatching']
+    }
+  ];
+
+  public async detectPatterns(
+    fileContent: string,
+    filePath: string
+  ): Promise<CodePatternMatch[]> {
+    const matches: CodePatternMatch[] = [];
+    const lines = fileContent.split('\n');
+
+    for (const pattern of this.UNREAL_PATTERNS) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const context = lines
+          .slice(Math.max(0, i - 2), Math.min(lines.length, i + 3))
+          .join('\n');
+
+        // Check for pattern examples
+        if (pattern.examples.some(example => 
+          line.includes(example.split('\n')[0]) || 
+          this.isPatternMatch(line, pattern.name))) {
+          
+          const suggestedImprovements = this.analyzePotentialImprovements(
+            context,
+            pattern
+          );
+
+          const learningResources = this.getLearningResources(pattern);
+
+          matches.push({
+            pattern,
+            file: filePath,
+            line: i + 1,
+            context,
+            suggestedImprovements,
+            learningResources
+          });
+        }
+      }
+    }
+
+    return matches;
+  }
+
+  private isPatternMatch(line: string, patternName: string): boolean {
+    const patternMatchers: { [key: string]: RegExp } = {
+      'UPROPERTY Macro': /UPROPERTY\s*\([^)]*\)/,
+      'Component Setup': /CreateDefaultSubobject\s*<[^>]+>\s*\(/,
+      'Event Binding': /\.Add(Dynamic|Unique|Raw|Lambda)|BindUFunction/
+    };
+
+    return patternMatchers[patternName]?.test(line) || false;
+  }
+
+  private analyzePotentialImprovements(
+    context: string,
+    pattern: PatternInfo
+  ): string[] {
+    const improvements: string[] = [];
+
+    switch (pattern.name) {
+      case 'UPROPERTY Macro':
+        if (!context.includes('Category')) {
+          improvements.push('Consider adding a Category specifier for better organization');
+        }
+        if (context.includes('BlueprintReadWrite') && !context.includes('Meta')) {
+          improvements.push('Consider adding Meta specifiers for validation');
+        }
+        break;
+
+      case 'Component Setup':
+        if (!context.includes('RootComponent') && context.includes('CreateDefaultSubobject')) {
+          improvements.push('Consider setting up component hierarchy');
+        }
+        break;
+
+      case 'Event Binding':
+        if (!context.toLowerCase().includes('beginplay') && !context.toLowerCase().includes('endplay')) {
+          improvements.push('Consider managing event binding/unbinding in BeginPlay/EndPlay');
+        }
+        break;
+    }
+
+    return improvements;
+  }
+
+  private getLearningResources(pattern: PatternInfo): LearningResource[] {
+    const commonResources: LearningResource[] = [
+      {
+        title: 'Official Documentation',
+        type: 'documentation',
+        url: pattern.documentation,
+        description: `Official Unreal Engine documentation for ${pattern.name}`
+      },
+      {
+        title: 'Community Guide',
+        type: 'tutorial',
+        url: `https://unrealcommunity.wiki/${pattern.name.toLowerCase().replace(/\s+/g, '-')}`,
+        description: 'Community-created guide with practical examples'
+      }
+    ];
+
+    return commonResources;
   }
 
   public async analyzeSubsystem(subsystem: string): Promise<SubsystemInfo> {
