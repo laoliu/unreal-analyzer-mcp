@@ -65,16 +65,53 @@ interface SubsystemInfo {
   sourceFiles: string[];
 }
 
+type ExtendedParser = Parser & {
+  createQuery(pattern: string): Query;
+};
+
 export class UnrealCodeAnalyzer {
-  private parser: any;
+  private parser: ExtendedParser;
   private unrealPath: string | null = null;
   private customPath: string | null = null;
   private classCache: Map<string, ClassInfo> = new Map();
+  private astCache: Map<string, Parser.Tree> = new Map();
+  private queryCache: Map<string, Query> = new Map();
   private initialized: boolean = false;
+  private readonly MAX_CACHE_SIZE = 1000;
+  private cacheQueue: string[] = [];
+
+  // Common query patterns
+  private readonly QUERY_PATTERNS = {
+    CLASS: `(class_specifier name: (type_identifier) @class_name body: (field_declaration_list) @class_body) @class`,
+    FUNCTION: `(function_definition declarator: (function_declarator) @func)`,
+    TYPE_IDENTIFIER: `(type_identifier) @id`,
+    IDENTIFIER: `(identifier) @id`
+  };
 
   constructor() {
-    this.parser = new Parser();
+    this.parser = new Parser() as ExtendedParser;
     this.parser.setLanguage(CPP);
+    
+    // Pre-cache common queries
+    Object.entries(this.QUERY_PATTERNS).forEach(([key, pattern]) => {
+      const query = this.parser.createQuery(pattern);
+      if (query) {
+        this.queryCache.set(key, query);
+      }
+    });
+  }
+
+  private manageCache<T extends object>(cache: Map<string, T>, key: string, value: T): void {
+    if (cache.size >= this.MAX_CACHE_SIZE) {
+      // Remove oldest entry using FIFO
+      const oldestKey = this.cacheQueue.shift();
+      if (oldestKey) {
+        cache.delete(oldestKey);
+      }
+    }
+    
+    cache.set(key, value);
+    this.cacheQueue.push(key);
   }
 
   public isInitialized(): boolean {
@@ -107,38 +144,42 @@ export class UnrealCodeAnalyzer {
   }
 
   private async buildInitialCache(): Promise<void> {
-    if (this.unrealPath) {
-      // Start with Unreal core classes
-      const corePaths = [
-        path.join(this.unrealPath, 'Engine/Source/Runtime/Core'),
-        path.join(this.unrealPath, 'Engine/Source/Runtime/CoreUObject'),
-      ];
+    if (!this.unrealPath && !this.customPath) {
+      throw new Error('No valid path configured');
+    }
 
-      for (const corePath of corePaths) {
-        const files = glob.sync('**/*.h', { cwd: corePath, absolute: true });
-        for (const file of files) {
-          await this.parseFile(file);
-        }
-      }
-    } else if (this.customPath) {
-      // Parse all header files in custom codebase
-      const files = glob.sync('**/*.h', { cwd: this.customPath, absolute: true });
-      for (const file of files) {
-        await this.parseFile(file);
+    const paths = this.unrealPath 
+      ? [
+          path.join(this.unrealPath, 'Engine/Source/Runtime/Core'),
+          path.join(this.unrealPath, 'Engine/Source/Runtime/CoreUObject'),
+        ]
+      : [this.customPath!];
+
+    // Process files in parallel batches
+    const BATCH_SIZE = 10;
+    for (const basePath of paths) {
+      const files = glob.sync('**/*.h', { cwd: basePath, absolute: true });
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(file => this.parseFile(file)));
       }
     }
   }
 
   private async parseFile(filePath: string): Promise<void> {
     const content = fs.readFileSync(filePath, 'utf8');
-    const tree = this.parser.parse(content);
+    let tree = this.astCache.get(filePath);
+    
+    if (!tree || tree.rootNode.hasError()) {
+      tree = this.parser.parse(content);
+      this.manageCache(this.astCache, filePath, tree);
+    }
 
-    const classQuery = this.parser.createQuery(`
-      (class_specifier
-        name: (type_identifier) @class_name
-        body: (field_declaration_list) @class_body
-      ) @class
-    `);
+    let classQuery = this.queryCache.get('CLASS');
+    if (!classQuery) {
+      classQuery = this.parser.createQuery(this.QUERY_PATTERNS.CLASS);
+      this.queryCache.set('CLASS', classQuery);
+    }
 
     const matches = classQuery.matches(tree.rootNode);
     for (const match of matches) {
@@ -152,7 +193,7 @@ export class UnrealCodeAnalyzer {
     }
   }
 
-  private async extractClassInfo(node: Parser.SyntaxNode, filePath: string): Promise<ClassInfo> {
+  private async extractClassInfo(node: SyntaxNode, filePath: string): Promise<ClassInfo> {
     const classInfo: ClassInfo = {
       name: '',
       file: filePath,
@@ -198,7 +239,7 @@ export class UnrealCodeAnalyzer {
     return classInfo;
   }
 
-  private extractMethodInfo(node: Parser.SyntaxNode): MethodInfo | null {
+  private extractMethodInfo(node: SyntaxNode): MethodInfo | null {
     const declarator = node.descendantsOfType('function_declarator')[0];
     if (!declarator) return null;
 
@@ -239,7 +280,7 @@ export class UnrealCodeAnalyzer {
     return methodInfo;
   }
 
-  private extractParameterInfo(node: Parser.SyntaxNode): ParameterInfo | null {
+  private extractParameterInfo(node: SyntaxNode): ParameterInfo | null {
     const typeNode = node.descendantsOfType('type_identifier')[0];
     const nameNode = node.descendantsOfType('identifier')[0];
     
@@ -251,7 +292,7 @@ export class UnrealCodeAnalyzer {
     };
   }
 
-  private extractPropertyInfo(node: Parser.SyntaxNode): PropertyInfo | null {
+  private extractPropertyInfo(node: SyntaxNode): PropertyInfo | null {
     const typeNode = node.descendantsOfType('type_identifier')[0];
     const nameNode = node.descendantsOfType('identifier')[0];
     
@@ -272,21 +313,27 @@ export class UnrealCodeAnalyzer {
     }
 
     // Check cache first
-    if (this.classCache.has(className)) {
-      return this.classCache.get(className)!;
+    const cachedInfo = this.classCache.get(className);
+    if (cachedInfo) {
+      return cachedInfo;
     }
 
     // Search for the class
     const searchPath = this.customPath || this.unrealPath;
+    if (!searchPath) {
+      throw new Error('No valid search path configured');
+    }
+
     const files = glob.sync('**/*.h', {
-      cwd: searchPath!,
+      cwd: searchPath,
       absolute: true,
     });
 
     for (const file of files) {
       await this.parseFile(file);
-      if (this.classCache.has(className)) {
-        return this.classCache.get(className)!;
+      const classInfo = this.classCache.get(className);
+      if (classInfo) {
+        return classInfo;
       }
     }
 
@@ -306,18 +353,20 @@ export class UnrealCodeAnalyzer {
     };
 
     // Recursively build superclass hierarchies
-    for (const superclass of classInfo.superclasses) {
-      try {
-        const superHierarchy = await this.findClassHierarchy(
-          superclass,
-          includeInterfaces
-        );
-        hierarchy.superclasses.push(superHierarchy);
-      } catch (error) {
-        // Superclass might not be found, skip it
-        console.error(`Could not analyze superclass: ${superclass}`);
-      }
-    }
+    await Promise.all(
+      classInfo.superclasses.map(async (superclass) => {
+        try {
+          const superHierarchy = await this.findClassHierarchy(
+            superclass,
+            includeInterfaces
+          );
+          hierarchy.superclasses.push(superHierarchy);
+        } catch (error) {
+          // Superclass might not be found, skip it
+          console.error(`Could not analyze superclass: ${superclass}`);
+        }
+      })
+    );
 
     return hierarchy;
   }
@@ -330,52 +379,69 @@ export class UnrealCodeAnalyzer {
       throw new Error('Analyzer not initialized');
     }
 
-    const references: CodeReference[] = [];
     const searchPath = this.customPath || this.unrealPath;
+    if (!searchPath) {
+      throw new Error('No valid search path configured');
+    }
+
     const files = glob.sync('**/*.{h,cpp}', {
-      cwd: searchPath!,
+      cwd: searchPath,
       absolute: true,
     });
 
-    for (const file of files) {
-      const content = fs.readFileSync(file, 'utf8');
-      const tree = this.parser.parse(content);
+    // Process files in parallel with a concurrency limit
+    const BATCH_SIZE = 10;
+    const references: CodeReference[] = [];
 
-      // Create appropriate query based on type
-      let queryString = '';
-      switch (type) {
-        case 'class':
-          queryString = `(type_identifier) @id (#eq? @id "${identifier}")`;
-          break;
-        case 'function':
-          queryString = `(identifier) @id (#eq? @id "${identifier}")`;
-          break;
-        case 'variable':
-          queryString = `(identifier) @id (#eq? @id "${identifier}")`;
-          break;
-        default:
-          queryString = `(identifier) @id (#eq? @id "${identifier}")`;
-          break;
-      }
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (file) => {
+          const content = fs.readFileSync(file, 'utf8');
+          let tree = this.astCache.get(file);
+          
+          if (!tree) {
+            tree = this.parser.parse(content);
+            this.manageCache(this.astCache, file, tree);
+          }
 
-      const query = this.parser.createQuery(queryString);
-      const matches = query.matches(tree.rootNode);
+          // Use cached query if available
+          const queryString = type === 'class' 
+            ? `(type_identifier) @id (#eq? @id "${identifier}")`
+            : `(identifier) @id (#eq? @id "${identifier}")`;
+          
+          const cacheKey = `${type}-${identifier}`;
+          let query = this.queryCache.get(cacheKey);
+          
+          if (!query) {
+            query = this.parser.createQuery(queryString);
+            this.queryCache.set(cacheKey, query);
+          }
 
-      for (const match of matches) {
-        const node = match.captures[0].node;
-        const startRow = node.startPosition.row;
-        const lines = content.split('\n');
-        const context = lines
-          .slice(Math.max(0, startRow - 2), startRow + 3)
-          .join('\n');
+          if (!query || !tree) {
+            return [];
+          }
 
-        references.push({
-          file,
-          line: startRow + 1,
-          column: node.startPosition.column + 1,
-          context,
-        });
-      }
+          const matches = query.matches(tree.rootNode);
+          return matches.map(match => {
+            const node = match.captures[0].node;
+            const startRow = node.startPosition.row;
+            const lines = content.split('\n');
+            const context = lines
+              .slice(Math.max(0, startRow - 2), startRow + 3)
+              .join('\n');
+
+            return {
+              file,
+              line: startRow + 1,
+              column: node.startPosition.column + 1,
+              context,
+            };
+          });
+        })
+      );
+
+      references.push(...batchResults.flat());
     }
 
     return references;
@@ -390,33 +456,58 @@ export class UnrealCodeAnalyzer {
       throw new Error('Analyzer not initialized');
     }
 
+    if (!this.unrealPath) {
+      throw new Error('No valid search path configured');
+    }
+
     const results: CodeReference[] = [];
     const files = glob.sync(`**/${filePattern}`, {
-      cwd: this.unrealPath!,
+      cwd: this.unrealPath,
       absolute: true,
     });
 
     const regex = new RegExp(query, 'gi');
+    const BATCH_SIZE = 20;
 
-    for (const file of files) {
-      const content = fs.readFileSync(file, 'utf8');
-      const lines = content.split('\n');
+    // Process files in parallel batches for better performance
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (file) => {
+          const refs: CodeReference[] = [];
+          const content = fs.readFileSync(file, 'utf8');
+          const lines = content.split('\n');
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (regex.test(line)) {
-          const context = lines
-            .slice(Math.max(0, i - 2), i + 3)
-            .join('\n');
+          // Use a single regex test per line for better performance
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // Skip comment lines if not including comments
+            if (!includeComments && (line.trim().startsWith('//') || line.trim().startsWith('/*'))) {
+              continue;
+            }
 
-          results.push({
-            file,
-            line: i + 1,
-            column: line.indexOf(query) + 1,
-            context,
-          });
-        }
-      }
+            if (regex.test(line)) {
+              // Reset regex lastIndex after test
+              regex.lastIndex = 0;
+              
+              const context = lines
+                .slice(Math.max(0, i - 2), i + 3)
+                .join('\n');
+
+              refs.push({
+                file,
+                line: i + 1,
+                column: line.indexOf(query) + 1,
+                context,
+              });
+            }
+          }
+          return refs;
+        })
+      );
+
+      results.push(...batchResults.flat());
     }
 
     return results;
@@ -425,6 +516,10 @@ export class UnrealCodeAnalyzer {
   public async analyzeSubsystem(subsystem: string): Promise<SubsystemInfo> {
     if (!this.initialized) {
       throw new Error('Analyzer not initialized');
+    }
+
+    if (!this.unrealPath) {
+      throw new Error('Unreal Engine path not configured');
     }
 
     const subsystemInfo: SubsystemInfo = {
@@ -452,7 +547,7 @@ export class UnrealCodeAnalyzer {
       throw new Error(`Unknown subsystem: ${subsystem}`);
     }
 
-    const fullPath = path.join(this.unrealPath!, subsystemDir);
+    const fullPath = path.join(this.unrealPath, subsystemDir);
     if (!fs.existsSync(fullPath)) {
       throw new Error(`Subsystem directory not found: ${fullPath}`);
     }
@@ -463,27 +558,32 @@ export class UnrealCodeAnalyzer {
       absolute: true,
     });
 
-    // Analyze each header file to find main classes
+    // Process files in parallel batches
+    const BATCH_SIZE = 10;
     const headerFiles = subsystemInfo.sourceFiles.filter(f => f.endsWith('.h'));
-    for (const file of headerFiles) {
-      await this.parseFile(file);
-      const content = fs.readFileSync(file, 'utf8');
-      const tree = this.parser.parse(content);
+    
+    for (let i = 0; i < headerFiles.length; i += BATCH_SIZE) {
+      const batch = headerFiles.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (file) => {
+        await this.parseFile(file);
+        const content = fs.readFileSync(file, 'utf8');
+        const tree = this.parser.parse(content);
 
-      // Find class declarations
-      const classQuery = this.parser.createQuery(`
-        (class_specifier
-          name: (type_identifier) @class_name
-        ) @class
-      `);
-
-      const matches = classQuery.matches(tree.rootNode);
-      for (const match of matches) {
-        const className = match.captures.find((c: QueryCapture) => c.name === 'class_name')?.node.text;
-        if (className) {
-          subsystemInfo.mainClasses.push(className);
+        const classQuery = this.queryCache.get('CLASS');
+        if (!classQuery) {
+          return;
         }
-      }
+
+        const matches = classQuery.matches(tree.rootNode);
+        for (const match of matches) {
+          const className = match.captures.find(
+            (c: QueryCapture) => c.name === 'class_name'
+          )?.node.text;
+          if (className) {
+            subsystemInfo.mainClasses.push(className);
+          }
+        }
+      }));
     }
 
     return subsystemInfo;
