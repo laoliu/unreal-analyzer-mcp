@@ -74,7 +74,7 @@ The analyzer helps you:
 - **Subsystem Analysis**: Analyze major Unreal Engine subsystems like Rendering, Physics, etc.
 - **Game Genre Knowledge**: Built-in knowledge base of game genres, features, and implementation patterns
 - **Pattern Detection & Learning**: Identifies common Unreal Engine patterns and provides learning resources
-- **Custom Codebase Support**: Analyze any C++ codebase, not just Unreal Engine code
+- **Custom Codebase Support**: Analyze your own Unreal Engine project codebase
 
 ## Installation
 
