@@ -27,8 +27,8 @@ A Model Context Protocol (MCP) server that provides powerful source code analysi
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/unreal-analyzer
-cd unreal-analyzer
+git clone https://github.com/ayeletstudioindia/unreal-analyzer-mcp
+cd unreal-analyzer-mcp
 ```
 
 2. Install dependencies:
