@@ -7,7 +7,6 @@ export class ToolService {
       description: 'Configure the path to Unreal Engine source code directory',
       schema: {
         path: z.string()
-          .regex(/^\/[^\0]+$/, "Must be a valid absolute path")
           .describe("Absolute path to UE source directory")
       }
     },
@@ -17,7 +16,6 @@ export class ToolService {
       description: 'Set the path to a custom C++ codebase for analysis',
       schema: {
         path: z.string()
-          .regex(/^\/[^\0]+$/, "Must be a valid absolute path")
           .describe("Absolute path to custom codebase directory")
       }
     },

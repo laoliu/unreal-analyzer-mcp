@@ -263,13 +263,12 @@ class UnrealAnalyzerServer {
       let inputSchema = tool.inputSchema;
       let toolschemas : any = new ToolService().toolSchemas;
       
-    this.server.tool(name,  description, toolschemas[name].schema, async(args:any) =>{let a:any = await this.process(args); return a;});
+    this.server.tool(name,  description, toolschemas[name].schema, async(args:any) =>{let ret:any = await this.process(name, args); return ret;});
     });
   }
 
-    private async process(args: any) {     
+    private async process(name: string, args: any) {     
       const parsed = args;
-      const name = parsed.method;
       logger.log(LogLevel.INFO, 'name111111111111:'+ name);
       logger.log(LogLevel.INFO, 'params22222222222222:'+ JSON.stringify(args, null, 2));      
             
