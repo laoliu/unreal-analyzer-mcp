@@ -478,21 +478,27 @@ export class UnrealCodeAnalyzer {
           }
 
           const matches = query.matches(tree.rootNode);
-          return matches.map(match => {
-            const node = match.captures[0].node;
-            const startRow = node.startPosition.row;
-            const lines = content.split('\n');
-            const context = lines
-              .slice(Math.max(0, startRow - 2), startRow + 3)
-              .join('\n');
+          //遍历访问每个matches的每个元素
+          let matchresult : any = [];
+           matches.forEach(match => {
+              if(match.captures[0]) {              
+                const node = match.captures[0].node;
+                const startRow = node.startPosition.row;
+                const lines = content.split('\n');
+                const context = lines
+                  .slice(Math.max(0, startRow - 2), startRow + 3)
+                  .join('\n');
 
-            return {
-              file,
-              line: startRow + 1,
-              column: node.startPosition.column + 1,
-              context,
-            };
+                  matchresult.push( {
+                  file,
+                  line: startRow + 1,
+                  column: node.startPosition.column + 1,
+                  context,
+                });
+              }
           });
+           return matchresult;
+
         })
       );
 

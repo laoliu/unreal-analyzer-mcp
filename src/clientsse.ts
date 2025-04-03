@@ -141,19 +141,18 @@ async function main() {
   //     {
   //         className: "AAIController"
   //     });
-  const result4 = await toolCaller.callTool("search_code",
+  const result4 = await toolCaller.callTool("find_references",
       {
-          query: "ATDeepSeekChatExample"
+        identifier: "ATDeepSeekChatExample",
+        type: "class"
       });
   console.log(result4); 
   let testFlag = 0; // 控制循环的布尔变量
   while (true) {
-    console.log(".");// 延时 2 秒后执行
     if (testFlag == 0) {
       testFlag = 1; // 设置标志位为1，表示正在执行      
-      sleep(2000); // 延时 2 秒
     }
-    console.log("+")
+    sleep(2000); // 延时 2 秒
   }
 }
 
