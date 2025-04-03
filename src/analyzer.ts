@@ -3,10 +3,11 @@
  */
 
 import Parser, { Query, QueryCapture, SyntaxNode } from 'tree-sitter';
-import * as CPP from 'tree-sitter-cpp';
+import CPP from 'tree-sitter-cpp';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as glob from 'glob';
+import { ExtendedParser } from './extendedparser.js';
 
 interface ClassInfo {
   name: string;
@@ -118,10 +119,6 @@ interface CodePatternMatch {
   learningResources: LearningResource[];
 }
 
-type ExtendedParser = Parser & {
-  createQuery(pattern: string): Query;
-};
-
 export class UnrealCodeAnalyzer {
   private parser: ExtendedParser;
   private unrealPath: string | null = null;
@@ -142,7 +139,7 @@ export class UnrealCodeAnalyzer {
   };
 
   constructor() {
-    this.parser = new Parser() as ExtendedParser;
+    this.parser = new ExtendedParser();
     this.parser.setLanguage(CPP);
     
     // Pre-cache common queries
@@ -153,7 +150,12 @@ export class UnrealCodeAnalyzer {
       }
     });
   }
+  
+  getCppGrammar(): any {
 
+    return CPP;
+
+  }
   private manageCache<T extends object>(cache: Map<string, T>, key: string, value: T): void {
     if (cache.size >= this.MAX_CACHE_SIZE) {
       // Remove oldest entry using FIFO

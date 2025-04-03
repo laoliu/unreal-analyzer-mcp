@@ -3,11 +3,14 @@
  * Created by Ayelet Technology Private Limited
  */
 
-import { Server, StdioServerTransport } from '@modelcontextprotocol/create-server';
-import type { CallToolRequest, ListToolsRequest } from '@modelcontextprotocol/create-server';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { UnrealCodeAnalyzer } from './analyzer.js';
 import { GAME_GENRES, GameGenre, GenreFlag } from './types/game-genres.js';
+import { z } from "zod";
+import { LogLevel, Logger } from './logger.js';
 
+const logger = new Logger();
 class UnrealAnalyzerServer {
   private server: Server;
   private analyzer: UnrealCodeAnalyzer;
@@ -36,7 +39,11 @@ class UnrealAnalyzerServer {
   }
 
   private setupToolHandlers() {
-    this.server.setRequestHandler<ListToolsRequest>('list_tools', async () => ({
+    let funsName1: z.ZodObject<{ method: z.ZodLiteral<string> }> = z.object({
+      method: z.literal('tools/list')
+    });
+
+    this.server.setRequestHandler(funsName1, async () => ({
       tools: [
         {
           name: 'set_unreal_path',
@@ -230,41 +237,63 @@ class UnrealAnalyzerServer {
         },
       ],
     }));
+    
+    let funsName2: z.ZodObject<{ method: z.ZodLiteral<string>, params:z.ZodAny }> = z.object({
+      method: z.literal('tools/call'),
+      params: z.any()
+    });
 
-    this.server.setRequestHandler<CallToolRequest>('call_tool', async (request: CallToolRequest) => {
-      // Only check for initialization for analysis tools
-      const analysisTools = ['analyze_class', 'find_class_hierarchy', 'find_references', 'search_code', 'analyze_subsystem', 'query_api'];
-      if (analysisTools.includes(request.params.name) && !this.analyzer.isInitialized() && 
-          request.params.name !== 'set_unreal_path' && request.params.name !== 'set_custom_codebase') {
+    this.server.setRequestHandler(funsName2, async (request) => {            
+      const params = request.params;
+      const name = params.name;
+      logger.log(LogLevel.INFO, 'name111111111111:'+ name);
+      logger.log(LogLevel.INFO, 'params22222222222222:'+ JSON.stringify(request, null, 2));      
+      
+      // Zod validation
+      const parsed = params.arguments;
+      
+      // Initialization check
+      if (this.requiresInitialization(name) && !this.analyzer.isInitialized()) {
         throw new Error('No codebase initialized. Use set_unreal_path or set_custom_codebase first.');
       }
 
-      switch (request.params.name) {
-        case 'detect_patterns':
-          return this.handleDetectPatterns(request.params.arguments);
-        case 'get_best_practices':
-          return this.handleGetBestPractices(request.params.arguments);
-        case 'set_unreal_path':
-          return this.handleSetUnrealPath(request.params.arguments);
-        case 'set_custom_codebase':
-          return this.handleSetCustomCodebase(request.params.arguments);
+      // Routing logic
+      switch (name) {
         case 'analyze_class':
-          return this.handleAnalyzeClass(request.params.arguments);
+          return this.handleAnalyzeClass(parsed);
         case 'find_class_hierarchy':
-          return this.handleFindClassHierarchy(request.params.arguments);
+          return this.handleFindClassHierarchy(parsed);
         case 'find_references':
-          return this.handleFindReferences(request.params.arguments);
+          return this.handleFindReferences(parsed);
         case 'search_code':
-          return this.handleSearchCode(request.params.arguments);
+          return this.handleSearchCode(parsed);
         case 'analyze_subsystem':
-          return this.handleAnalyzeSubsystem(request.params.arguments);
+          return this.handleAnalyzeSubsystem(parsed);
         case 'query_api':
-          return this.handleQueryApi(request.params.arguments);
+          return this.handleQueryApi(parsed);
+        case 'detect_patterns':
+          return this.handleDetectPatterns(parsed);
+        case 'get_best_practices':
+          return this.handleGetBestPractices(parsed);
+        case 'set_unreal_path':
+          return this.handleSetUnrealPath(parsed);
+        case 'set_custom_codebase':
+          return this.handleSetCustomCodebase(parsed);
         default:
-          throw new Error(`Unknown tool: ${request.params.name}`);
+          throw new Error(`Unknown tool: ${name}`);
       }
     });
   }
+
+  private requiresInitialization(toolName: string): boolean {
+    const analysisTools = [
+      'analyze_class', 'find_class_hierarchy', 
+      'find_references', 'search_code', 
+      'analyze_subsystem', 'query_api'
+    ];
+    return analysisTools.includes(toolName);
+  }
+  
 
   private async handleSetUnrealPath(args: any) {
     try {
@@ -558,7 +587,8 @@ class UnrealAnalyzerServer {
     }
   }
 
-  async run() {
+  async run() {    
+
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error('Unreal Engine Analyzer MCP server running on stdio');

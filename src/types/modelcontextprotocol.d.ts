@@ -16,6 +16,11 @@ declare module '@modelcontextprotocol/create-server' {
     onerror: (error: Error) => void;
     close(): Promise<void>;
     connect(transport: StdioServerTransport): Promise<void>;
+    
+  //   setRequestHandler<T extends ZodObject<{
+  //     method: ZodLiteral<string>;
+  // }>>(requestSchema: T, handler: (request: z.infer<T>, extra: RequestHandlerExtra) => SendResultT | Promise<SendResultT>): void;
+
     setRequestHandler<T extends { params: any }>(
       method: string,
       handler: (request: T) => Promise<{
@@ -34,20 +39,5 @@ declare module '@modelcontextprotocol/create-server' {
         }>;
       }>
     ): void;
-  }
-
-  export class StdioServerTransport {
-    constructor();
-  }
-
-  export interface ListToolsRequest {
-    params: {};
-  }
-
-  export interface CallToolRequest {
-    params: {
-      name: string;
-      arguments: any;
-    };
   }
 }
