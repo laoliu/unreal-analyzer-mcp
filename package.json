@@ -15,11 +15,13 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
+    "express": "^5.1.0",
     "glob": "^11.0.1",
     "tree-sitter": "^0.20.6",
     "tree-sitter-cpp": "^0.20.5"
   },
   "devDependencies": {
+    "@types/express": "^5.0.1",
     "@types/glob": "^8.1.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^18.15.11",
